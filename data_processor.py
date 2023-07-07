@@ -60,6 +60,12 @@ class DataProcessor(object):
                 self.hist['VROCP'] = abstract.ROCP(self.hist['Volume'], timeperiod=timeperiod)
             if indicator == 'MA':
                 self.hist['MA'] = abstract.MA(self.hist['Close'], timeperiod=timeperiod)
+            if indicator == 'SMA':
+                self.hist['SMA'] = abstract.SMA(self.hist['Close'], timeperiod=timeperiod)
+            if indicator == 'EMA':
+                self.hist['EMA'] = abstract.EMA(self.hist['Close'], timeperiod=timeperiod)
+            if indicator == 'WMA':
+                self.hist['WMA'] = abstract.WMA(self.hist['Close'], timeperiod=timeperiod)
             if indicator == 'RSI':
                 self.hist['RSI'] = abstract.RSI(self.hist['Close'], timeperiod=timeperiod)
             if indicator == 'RSIROCP':

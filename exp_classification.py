@@ -2,10 +2,16 @@ from sklearn import linear_model
 from data_processor import DataProcessor
 from models.lstm_classifier import LSTMClassifier
 from torch.optim import Adam
+import time
+import joblib
 
 import torch.nn as nn
 import torch
 import numpy as np
+
+
+# path config
+model_path = './ckpt'
 
 # data config
 tiker = 'AAPL'
@@ -13,7 +19,7 @@ is_local = False
 period = '10y'
 interval = '1d'
 features = ['Open', 'Close', 'High', 'Low', 'Volume']
-technical_indicators = ['CROCP', 'OROCP', 'LROCP', 'HROCP', 'VROCP', 'MA', 'RSI', 'RSIROCP']
+technical_indicators = ['CROCP', 'OROCP', 'LROCP', 'HROCP', 'VROCP', 'MA', 'SMA', 'EMA', 'WMA', 'RSI', 'RSIROCP']
 target = 'Trend'
 seq_len = 10
 train_ratio = 0.7
@@ -36,6 +42,7 @@ n_epochs = 1000
 model_name = 'LSTMClassifier'
 model_framework = 'PyTorch'
 
+# initialize
 model = None
 optimizer = None
 loss_fn = nn.BCELoss()
@@ -58,19 +65,25 @@ def build_data():
         X_train, X_val, X_test, y_train, y_val, y_test = data_processor.get_data()
 
 
-def build_model():
+def build_model(path=None):
     global model
-    if model_name == 'LogisticRegression':
-        model = linear_model.LogisticRegression(C=C, penalty=penalty, tol=tol,
-                                                solver='lbfgs', max_iter=1000, 
-                                                verbose=3, random_state=42)
-    elif model_name == 'LSTMClassifier':
-        global optimizer
-        model = LSTMClassifier(input_size=input_size, 
-                               hidden_size=hidden_size, 
-                               num_layers=num_layers, 
-                               num_classes=num_classes)
-        optimizer = Adam(model.parameters(), lr=lr)
+    if model_framework == 'Sklearn':
+        if path:
+            model = joblib.load(path)
+        elif model_name == 'LogisticRegression':
+            model = linear_model.LogisticRegression(C=C, penalty=penalty, tol=tol,
+                                                    solver='lbfgs', max_iter=1000, 
+                                                    verbose=3, random_state=42)
+    elif model_framework == 'PyTorch':
+        if model_name == 'LSTMClassifier':
+            global optimizer
+            model = LSTMClassifier(input_size=input_size, 
+                                hidden_size=hidden_size, 
+                                num_layers=num_layers, 
+                                num_classes=num_classes)
+            optimizer = Adam(model.parameters(), lr=lr)
+
+        model.load_state_dict(torch.load(path))
 
 
 def evaluate(data_loader):
@@ -104,7 +117,8 @@ def train_deep_model():
             train_acc = np.mean(acc)
             _, val_acc = evaluate(val_loader)
             print(f'Epoch: {epoch+1}, Train Loss: {loss.item():.4f}, Train Acc: {train_acc:.4f}, Val Acc: {val_acc:.4f}')
-        # test
+    torch.save(model.state_dict(), f'{model_path}/{model_name}_{time.strftime("%Y%m%d%H%M%S", time.localtime())}.ckpt')
+    # test
     y_pred_test, test_acc = evaluate(test_loader)
     print(f'Test Acc: {test_acc:.4f}')
     return y_pred_test
@@ -119,6 +133,8 @@ def train_traditional_model():
     train_acc = model.score(X_train, y_train)
     val_acc = model.score(X_val, y_val)
     print(f'Train Acc: {train_acc:.4f}, Val Acc: {val_acc:.4f}')
+    # save
+    joblib.dump(model, f'{model_path}/{model_name}_{time.strftime("%Y%m%d%H%M%S", time.localtime())}.pkl')
     # test
     test_acc = model.score(X_test, y_test)
     print(f'Test Acc: {test_acc:.4f}')

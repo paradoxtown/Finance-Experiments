@@ -1,4 +1,5 @@
-from sklearn import linear_model
+from sklearn import linear_model, svm, ensemble, neural_network
+from sklearn.metrics import roc_auc_score
 from data_processor import DataProcessor
 from models.lstm_classifier import LSTMClassifier
 from torch.optim import Adam
@@ -29,13 +30,14 @@ scale = True
 # traditional model config
 C = 1.0
 penalty = 'l2'
-tol = 1e-4
+tol = 1e-6
+max_iter = 1000
 
 # deep model config
 batch_size = 32
 input_size = len(features) + len(technical_indicators)
-hidden_size = 128
-num_layers = 2
+hidden_size = 128 #TODO
+num_layers = 1
 num_classes = 1
 lr = 1e-4
 n_epochs = 1000
@@ -72,30 +74,47 @@ def build_model(path=None):
             model = joblib.load(path)
         elif model_name == 'LogisticRegression':
             model = linear_model.LogisticRegression(C=C, penalty=penalty, tol=tol,
-                                                    solver='lbfgs', max_iter=1000, 
+                                                    solver='lbfgs', max_iter=max_iter, 
                                                     verbose=3, random_state=42)
+        elif model_name == 'Lasso':
+            model = linear_model.Lasso(alpha=0.1, max_iter=max_iter, tol=tol, random_state=42)
+        elif model_name == 'SVM':
+            model = svm.SVC(C=C, kernel='rbf', gamma='auto', tol=tol, 
+                            max_iter=max_iter, verbose=3, random_state=42)
+        elif model_name == 'RandomForest':
+            model = ensemble.RandomForestClassifier(n_estimators=100, max_depth=2, random_state=42)
+        elif model_name == 'MLP':
+            model = neural_network.MLPClassifier(hidden_layer_sizes=(100, 100), verbose=True, 
+                                                 batch_size=32, early_stopping=True, tol=tol,
+                                                 learning_rate_init=lr, max_iter=max_iter, random_state=42)
+        else:
+            raise ValueError(f'Invalid model name: {model_name} with Sklearn framework')
     elif model_framework == 'PyTorch':
         if model_name == 'LSTMClassifier':
             global optimizer
             model = LSTMClassifier(input_size=input_size, 
-                                hidden_size=hidden_size, 
-                                num_layers=num_layers, 
-                                num_classes=num_classes)
+                                   hidden_size=hidden_size, 
+                                   num_layers=num_layers, 
+                                   num_classes=num_classes)
             optimizer = Adam(model.parameters(), lr=lr)
-
-        model.load_state_dict(torch.load(path))
+        else:
+            raise ValueError(f'Invalid model name: {model_name} with PyTorch framework')
+        if path:
+            model.load_state_dict(torch.load(path))
 
 
 def evaluate(data_loader):
     model.eval()
-    y_pred, acc = [], []
+    y_pred, acc, auc = [], [], []
     with torch.no_grad():
         for X_batch, y_batch in data_loader:
             y_pred_ = model(X_batch.float()).numpy()
             acc.extend((y_pred_ > 0.5) == y_batch.numpy().reshape(-1, 1))
-            y_pred.extend(y_pred_)
+            auc.append(roc_auc_score(y_batch.numpy().reshape(-1, 1), y_pred_))
+            y_pred.extend(y_pred_ > 0.5)
         acc = np.mean(acc)
-    return y_pred, acc
+        auc = np.mean(auc)
+    return y_pred, acc, auc
 
 
 def train_deep_model():
@@ -115,12 +134,14 @@ def train_deep_model():
         if epoch % 100 == 99:
             # validate
             train_acc = np.mean(acc)
-            _, val_acc = evaluate(val_loader)
-            print(f'Epoch: {epoch+1}, Train Loss: {loss.item():.4f}, Train Acc: {train_acc:.4f}, Val Acc: {val_acc:.4f}')
+            _, val_acc, val_auc = evaluate(val_loader)
+            print(f'Epoch: {epoch+1}, Train Loss: {loss.item():.4f}, Train Acc: {train_acc:.4f}, \
+                  Val Acc: {val_acc:.4f}, Val AUC: {val_auc:.4f}')
     torch.save(model.state_dict(), f'{model_path}/{model_name}_{time.strftime("%Y%m%d%H%M%S", time.localtime())}.ckpt')
     # test
-    y_pred_test, test_acc = evaluate(test_loader)
-    print(f'Test Acc: {test_acc:.4f}')
+    y_pred_test, test_acc, test_auc = evaluate(test_loader)
+    print(f'Test Acc: {test_acc:.4f}, Test AUC: {test_auc:.4f}')
+    
     return y_pred_test
 
 
@@ -136,8 +157,12 @@ def train_traditional_model():
     # save
     joblib.dump(model, f'{model_path}/{model_name}_{time.strftime("%Y%m%d%H%M%S", time.localtime())}.pkl')
     # test
+    y_pred = model.predict(X_test)
     test_acc = model.score(X_test, y_test)
-    print(f'Test Acc: {test_acc:.4f}')
+    test_auc = roc_auc_score(y_test, y_pred)
+    print(f'Test Acc: {test_acc:.4f}, Test AUC: {test_auc:.4f}')
+    
+    return y_pred
     
 
 def train():
@@ -145,8 +170,8 @@ def train():
         y_pred_test = train_deep_model()
         return y_pred_test
     if model_framework == 'Sklearn':
-        train_traditional_model()
-        return model.predict(X_test)
+        y_pred_test = train_traditional_model()
+        return y_pred_test
 
 
 def print_info():
@@ -168,6 +193,7 @@ def print_info():
     print(f'Number of Epochs: {n_epochs}')
     print(f'Model Name: {model_name}')
     print(f'Model Framework: {model_framework}')
+    print('----------------------------------------')
     
 
 def run():

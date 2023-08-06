@@ -56,6 +56,7 @@ data_processor = None
 
 def build_data():
     global data_processor
+    data_processor = None
     data_processor = DataProcessor(tiker, is_local, period, interval, 
                                    features, technical_indicators, 
                                    target, batch_size, seq_len, 
@@ -70,6 +71,7 @@ def build_data():
 
 def build_model(path=None):
     global model
+    model = None
     input_size = len(features) + len(technical_indicators)
     if model_framework == 'Sklearn':
         if path:
@@ -137,7 +139,7 @@ def train_deep_model():
             train_acc = np.mean(acc)
             _, val_acc, val_auc = evaluate(val_loader)
             print(f'Epoch: {epoch+1}, Train Loss: {loss.item():.4f}, Train Acc: {train_acc:.4f}, \
-                  Val Acc: {val_acc:.4f}, Val AUC: {val_auc:.4f}')
+            Val Acc: {val_acc:.4f}, Val AUC: {val_auc:.4f}')
     torch.save(model.state_dict(), f'{model_path}/{model_name}_{time.strftime("%Y%m%d%H%M%S", time.localtime())}.ckpt')
     # test
     y_pred_test, test_acc, test_auc = evaluate(test_loader)
@@ -168,11 +170,9 @@ def train_traditional_model():
 
 def train():
     if model_framework == 'PyTorch':
-        y_pred_test = train_deep_model()
-        return y_pred_test
+        return train_deep_model()
     if model_framework == 'Sklearn':
-        y_pred_test = train_traditional_model()
-        return y_pred_test
+        return train_traditional_model()
 
 
 def print_info():
@@ -207,5 +207,7 @@ def run():
     sim_data = data_processor.get_simulate_data()
     sim_data['y_pred'] = y_pred
     bt = sim.backtest(sim_data)
-    bt.run()
+    sim_result = bt.run()
+    print('----------------------------------------')
+    print(sim_result)
     return y_pred

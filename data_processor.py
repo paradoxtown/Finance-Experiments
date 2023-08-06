@@ -20,7 +20,10 @@ class DataProcessor(object):
         if is_local:
             self.hist = pd.read_csv(f'./datasets/{tiker}.csv')
         else:
-            self.hist = yf.Ticker(tiker).history(period=period, interval=interval)
+            if period:
+                self.hist = yf.Ticker(tiker).history(period=period, interval=interval)
+            else:
+                self.hist = yf.Ticker(tiker).history(start='2013-07-01', end='2023-07-01', interval=interval)
         
         self.hist = self.hist[features]
         

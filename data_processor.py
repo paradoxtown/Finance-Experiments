@@ -14,12 +14,8 @@ class DataProcessor(object):
     def __init__(self, tiker, is_local=False, period='10y', interval='1d', 
                  features=['Open', 'Close', 'High', 'Close', 'Volume'], 
                  technical_indicators=['CROCP', 'OROCP', 'LROCP', 'HROCP', 'VROCP', 'MA', 'RSI', 'RSIROCP'],
-                 target='Trend',
-                 batch_size=32,
-                 seq_len=10,
-                 train_ratio=0.7,
-                 test_ratio=0.2,
-                 scale=True):
+                 target='Trend', batch_size=32, seq_len=10, train_ratio=0.7,
+                 test_ratio=0.2, scale=True):
         self.tiker = tiker
         if is_local:
             self.hist = pd.read_csv(f'./datasets/{tiker}.csv')
@@ -102,12 +98,12 @@ class DataProcessor(object):
         
         return X_train, X_val, X_test, y_train, y_val, y_test
 
-    def get_time_series(self, X, y, seq_len=10):
+    def get_time_series(self, X, y):
         Xs, ys = [], []
-        for i in range(len(X) - seq_len + 1):
-            v = X[i:(i + seq_len)]
+        for i in range(len(X) - self.seq_len + 1):
+            v = X[i:(i + self.seq_len)]
             Xs.append(v)
-            ys.append(y[i + seq_len - 1])
+            ys.append(y[i + self.seq_len - 1])
         return np.array(Xs), np.array(ys)
 
     def get_data_loader(self):

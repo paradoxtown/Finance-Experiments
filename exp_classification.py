@@ -10,6 +10,7 @@ import torch.nn as nn
 import torch
 import numpy as np
 
+import simulator as sim
 
 # path config
 model_path = './ckpt'
@@ -35,11 +36,11 @@ max_iter = 1000
 
 # deep model config
 batch_size = 32
-input_size = len(features) + len(technical_indicators)
+input_size = 5
 hidden_size = 128 #TODO
 num_layers = 1
 num_classes = 1
-lr = 1e-4
+lr = 1e-5
 n_epochs = 1000
 model_name = 'LSTMClassifier'
 model_framework = 'PyTorch'
@@ -69,6 +70,7 @@ def build_data():
 
 def build_model(path=None):
     global model
+    input_size = len(features) + len(technical_indicators)
     if model_framework == 'Sklearn':
         if path:
             model = joblib.load(path)
@@ -105,15 +107,15 @@ def build_model(path=None):
 
 def evaluate(data_loader):
     model.eval()
-    y_pred, acc, auc = [], [], []
+    y_true, y_pred = [], []
     with torch.no_grad():
         for X_batch, y_batch in data_loader:
+            y_true.extend(y_batch.numpy())
             y_pred_ = model(X_batch.float()).numpy()
-            acc.extend((y_pred_ > 0.5) == y_batch.numpy().reshape(-1, 1))
-            auc.append(roc_auc_score(y_batch.numpy().reshape(-1, 1), y_pred_))
             y_pred.extend(y_pred_ > 0.5)
-        acc = np.mean(acc)
-        auc = np.mean(auc)
+    y_pred = np.squeeze(y_pred)
+    acc = np.mean(y_pred == y_true)
+    auc = roc_auc_score(y_true, y_pred)
     return y_pred, acc, auc
 
 
@@ -122,14 +124,13 @@ def train_deep_model():
     for epoch in range(1, n_epochs + 1):
         # train
         model.train()
-        y_pred_train, acc = [], []
+        acc = []
         for X_batch, y_batch in train_loader:
             optimizer.zero_grad()
             y_pred = model(X_batch.float())
             loss = loss_fn(y_pred, y_batch.unsqueeze(1).float())
             loss.backward()
             optimizer.step()
-            y_pred_train.extend(y_pred.detach().numpy())
             acc.extend((y_pred.detach().numpy() > 0.5) == y_batch.numpy().reshape(-1, 1))
         if epoch % 100 == 99:
             # validate
@@ -191,14 +192,20 @@ def print_info():
     print(f'Number of Classes: {num_classes}')
     print(f'Learning Rate: {lr}')
     print(f'Number of Epochs: {n_epochs}')
+    print(f'Max Iterations: {max_iter}')
     print(f'Model Name: {model_name}')
     print(f'Model Framework: {model_framework}')
     print('----------------------------------------')
     
 
 def run():
-    print_info()
     build_data()
     build_model()
-    return train()
+    print_info()
+    y_pred = train()
     
+    sim_data = data_processor.get_simulate_data()
+    sim_data['y_pred'] = y_pred
+    bt = sim.backtest(sim_data)
+    bt.run()
+    return y_pred

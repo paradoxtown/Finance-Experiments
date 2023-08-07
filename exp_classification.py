@@ -13,6 +13,9 @@ import numpy as np
 
 import simulator as sim
 
+# device
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
 # path config
 model_path = './ckpt'
 
@@ -128,18 +131,20 @@ def evaluate(data_loader):
 
 def train_deep_model():
     global optimizer
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr,
-                                 betas=(0.9, 0.999), eps=1e-08,
-                                 weight_decay=1e-5)
+    optimizer = Adam(model.parameters(), lr=lr,
+                     betas=(0.9, 0.999), eps=1e-08,
+                     weight_decay=1e-5)
     
     print(f'Training {model_name} model...')
     print(model)
     print('----------------------------------------')
+    model.to(device)
     for epoch in range(1, n_epochs + 1):
         # train
         model.train()
         acc = []
         for X_batch, y_batch in train_loader:
+            X_batch, y_batch = X_batch.to(device), y_batch.to(device)
             optimizer.zero_grad()
             y_pred = model(X_batch.float())
             loss = loss_fn(y_pred, y_batch.unsqueeze(1).float())

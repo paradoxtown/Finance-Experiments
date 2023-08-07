@@ -8,11 +8,11 @@ class MyStrategy(Strategy):
         self.I(lambda x: x, self.data['y_pred'], name='y_pred')
 
     def next(self):
-        forcast = self.data['y_pred'][-1]
+        forecast = self.data['y_pred'][-1]
         
-        if forcast == 1 and not self.position.is_long:
+        if forecast == 1 and not self.position.is_long:
             self.buy(size=.2)
-        elif forcast == 0 and not self.position.is_short:
+        elif forecast == 0 and not self.position.is_short:
             self.sell(size=.2)
             
 

@@ -2,6 +2,7 @@ from sklearn import linear_model, svm, ensemble, neural_network
 from sklearn.metrics import roc_auc_score
 from data_processor import DataProcessor
 from models.lstm_classifier import LSTMClassifier
+from models.att_lstm_classifier import AttLSTMClassifier
 from torch.optim import Adam
 import time
 import joblib
@@ -18,29 +19,29 @@ model_path = './ckpt'
 # data config
 tiker = 'AAPL'
 is_local = False
-period = '10y'
+period = None
 interval = '1d'
 features = ['Open', 'Close', 'High', 'Low', 'Volume']
 technical_indicators = ['CROCP', 'OROCP', 'LROCP', 'HROCP', 'VROCP', 'MA', 'SMA', 'EMA', 'WMA', 'RSI', 'RSIROCP']
 target = 'Trend'
-seq_len = 10
+seq_len = 1
 train_ratio = 0.7
 test_ratio = 0.2
 scale = True
 
 # traditional model config
-C = 1.0
+C = 10.0
 penalty = 'l2'
 tol = 1e-6
 max_iter = 1000
 
 # deep model config
-batch_size = 32
+batch_size = 512
 input_size = 5
-hidden_size = 128 #TODO
+hidden_size = 128
 num_layers = 1
 num_classes = 1
-lr = 1e-5
+lr = 1e-3
 n_epochs = 1000
 model_name = 'LSTMClassifier'
 model_framework = 'PyTorch'
@@ -79,12 +80,12 @@ def build_model(path=None):
         elif model_name == 'LogisticRegression':
             model = linear_model.LogisticRegression(C=C, penalty=penalty, tol=tol,
                                                     solver='lbfgs', max_iter=max_iter, 
-                                                    verbose=3, random_state=42)
+                                                    random_state=42)
         elif model_name == 'Lasso':
             model = linear_model.Lasso(alpha=0.1, max_iter=max_iter, tol=tol, random_state=42)
         elif model_name == 'SVM':
             model = svm.SVC(C=C, kernel='rbf', gamma='auto', tol=tol, 
-                            max_iter=max_iter, verbose=3, random_state=42)
+                            max_iter=max_iter, random_state=42)
         elif model_name == 'RandomForest':
             model = ensemble.RandomForestClassifier(n_estimators=100, max_depth=2, random_state=42)
         elif model_name == 'MLP':
@@ -95,12 +96,16 @@ def build_model(path=None):
             raise ValueError(f'Invalid model name: {model_name} with Sklearn framework')
     elif model_framework == 'PyTorch':
         if model_name == 'LSTMClassifier':
-            global optimizer
             model = LSTMClassifier(input_size=input_size, 
                                    hidden_size=hidden_size, 
                                    num_layers=num_layers, 
                                    num_classes=num_classes)
-            optimizer = Adam(model.parameters(), lr=lr)
+
+        elif model_name == 'AttLSTMClassifier':
+            model = AttLSTMClassifier(input_size=input_size,
+                                      hidden_size=hidden_size,
+                                      num_layers=num_layers,
+                                      num_classes=num_classes)
         else:
             raise ValueError(f'Invalid model name: {model_name} with PyTorch framework')
         if path:
@@ -122,7 +127,14 @@ def evaluate(data_loader):
 
 
 def train_deep_model():
+    global optimizer
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr,
+                                 betas=(0.9, 0.999), eps=1e-08,
+                                 weight_decay=1e-5)
+    
     print(f'Training {model_name} model...')
+    print(model)
+    print('----------------------------------------')
     for epoch in range(1, n_epochs + 1):
         # train
         model.train()
@@ -139,7 +151,7 @@ def train_deep_model():
             train_acc = np.mean(acc)
             _, val_acc, val_auc = evaluate(val_loader)
             print(f'Epoch: {epoch+1}, Train Loss: {loss.item():.4f}, Train Acc: {train_acc:.4f}, \
-            Val Acc: {val_acc:.4f}, Val AUC: {val_auc:.4f}')
+            Val Acc: {val_acc:.4f}, Val AUC: {val_auc:.4f}, lr: {optimizer.param_groups[0]["lr"]:.6f}')
     torch.save(model.state_dict(), f'{model_path}/{model_name}_{time.strftime("%Y%m%d%H%M%S", time.localtime())}.ckpt')
     # test
     y_pred_test, test_acc, test_auc = evaluate(test_loader)
@@ -185,6 +197,7 @@ def print_info():
     print(f'Sequence Length: {seq_len}')
     print(f'Train Ratio: {train_ratio}')
     print(f'Test Ratio: {test_ratio}')
+    print(f'C: {C}')
     print(f'Batch Size: {batch_size}')
     print(f'Input Size: {input_size}')
     print(f'Hidden Size: {hidden_size}')

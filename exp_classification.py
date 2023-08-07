@@ -120,8 +120,9 @@ def evaluate(data_loader):
     y_true, y_pred = [], []
     with torch.no_grad():
         for X_batch, y_batch in data_loader:
-            y_true.extend(y_batch.numpy())
-            y_pred_ = model(X_batch.float()).numpy()
+            X_batch, y_batch = X_batch.to(device), y_batch.to(device)
+            y_true.extend(y_batch.cpu().data.numpy())
+            y_pred_ = model(X_batch.float()).cpu().data.numpy()
             y_pred.extend(y_pred_ > 0.5)
     y_pred = np.squeeze(y_pred)
     acc = np.mean(y_pred == y_true)
@@ -150,7 +151,7 @@ def train_deep_model():
             loss = loss_fn(y_pred, y_batch.unsqueeze(1).float())
             loss.backward()
             optimizer.step()
-            acc.extend((y_pred.detach().numpy() > 0.5) == y_batch.numpy().reshape(-1, 1))
+            acc.extend((y_pred.cpu().data.numpy() > 0.5) == y_batch.cpu().data.numpy().reshape(-1, 1))
         if epoch % 100 == 99:
             # validate
             train_acc = np.mean(acc)

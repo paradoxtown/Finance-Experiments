@@ -1,8 +1,10 @@
 from sklearn import linear_model, svm, ensemble, neural_network
 from sklearn.metrics import roc_auc_score
 from data_processor import DataProcessor
+from models.gru_classifier import GRUClassifier
 from models.lstm_classifier import LSTMClassifier
 from models.att_lstm_classifier import AttLSTMClassifier
+from torch.optim.lr_scheduler import StepLR
 from torch.optim import Adam
 import time
 import joblib
@@ -15,6 +17,9 @@ import simulator as sim
 
 # device
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+# set random seed
+torch.manual_seed(42)
 
 # path config
 model_path = './ckpt'
@@ -52,6 +57,7 @@ model_framework = 'PyTorch'
 # initialize
 model = None
 optimizer = None
+lr_scheduler = None
 loss_fn = nn.BCELoss()
 train_loader, val_loader, test_loader = None, None, None
 X_train, X_val, X_test, y_train, y_val, y_test = None, None, None, None, None, None
@@ -103,7 +109,11 @@ def build_model(path=None):
                                    hidden_size=hidden_size, 
                                    num_layers=num_layers, 
                                    num_classes=num_classes)
-
+        elif model_name == 'GRUClassifier':
+            model = GRUClassifier(input_size=input_size,
+                                  hidden_size=hidden_size,
+                                  num_layers=num_layers,
+                                  num_classes=num_classes)
         elif model_name == 'AttLSTMClassifier':
             model = AttLSTMClassifier(input_size=input_size,
                                       hidden_size=hidden_size,
@@ -131,10 +141,11 @@ def evaluate(data_loader):
 
 
 def train_deep_model():
-    global optimizer
+    global optimizer, lr_scheduler
     optimizer = Adam(model.parameters(), lr=lr,
                      betas=(0.9, 0.999), eps=1e-08,
                      weight_decay=1e-5)
+    lr_scheduler = StepLR(optimizer, step_size=(n_epochs // 3), gamma=0.1)
     
     print(f'Training {model_name} model...')
     print(model)
@@ -145,10 +156,10 @@ def train_deep_model():
         model.train()
         acc = []
         for X_batch, y_batch in train_loader:
-            X_batch, y_batch = X_batch.to(device), y_batch.to(device)
+            X_batch, y_batch = X_batch.float().to(device), y_batch.float().to(device)
             optimizer.zero_grad()
-            y_pred = model(X_batch.float())
-            loss = loss_fn(y_pred, y_batch.unsqueeze(1).float())
+            y_pred = model(X_batch)
+            loss = loss_fn(y_pred, y_batch.unsqueeze(1))
             loss.backward()
             optimizer.step()
             acc.extend((y_pred.cpu().data.numpy() > 0.5) == y_batch.cpu().data.numpy().reshape(-1, 1))
@@ -158,6 +169,7 @@ def train_deep_model():
             _, val_acc, val_auc = evaluate(val_loader)
             print(f'Epoch: {epoch+1}, Train Loss: {loss.item():.4f}, Train Acc: {train_acc:.4f}, \
             Val Acc: {val_acc:.4f}, Val AUC: {val_auc:.4f}, lr: {optimizer.param_groups[0]["lr"]:.6f}')
+        lr_scheduler.step()
     torch.save(model.state_dict(), f'{model_path}/{model_name}_{time.strftime("%Y%m%d%H%M%S", time.localtime())}.ckpt')
     # test
     y_pred_test, test_acc, test_auc = evaluate(test_loader)

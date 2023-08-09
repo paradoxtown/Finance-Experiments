@@ -227,6 +227,25 @@ def print_info():
     print(f'Model Name: {model_name}')
     print(f'Model Framework: {model_framework}')
     print('----------------------------------------')
+
+def run_baseline():
+    build_data()
+    sim_data = data_processor.get_simulate_data()
+    # random
+    y_pred = np.random.randint(0, 2, len(sim_data))
+    sim_data['y_pred'] = y_pred
+    bt = sim.backtest(sim_data)
+    sim_result = bt.run()
+    print('----------------------------------------')
+    print(sim_result)
+    
+    # y_true
+    sim_data.drop('y_pred', axis=1, inplace=True)
+    sim_data['y_pred'] = sim_data['y_true']
+    bt = sim.backtest(sim_data)
+    sim_result = bt.run()
+    print('----------------------------------------')
+    print(sim_result)
     
 
 def run():

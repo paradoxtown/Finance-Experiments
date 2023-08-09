@@ -28,4 +28,4 @@ class LongOnly(Strategy):
 
 
 def backtest(data):
-    return Backtest(data, LongOnly, cash=10000, commission=.002)
+    return Backtest(data, MyStrategy, cash=10000, commission=.002)

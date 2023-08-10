@@ -19,7 +19,12 @@ import simulator as sim
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # set random seed
-torch.manual_seed(42)
+SEED=42
+np.random.seed(SEED)
+torch.manual_seed(SEED)
+torch.cuda.manual_seed_all(SEED)
+torch.backends.cudnn.deterministic=True
+torch.backends.cudnn.benchmark = False
 
 # path config
 model_path = './ckpt'
@@ -47,7 +52,7 @@ max_iter = 1000
 batch_size = 512
 input_size = 5
 hidden_size = 128
-num_layers = 1
+num_layers = 2
 num_classes = 1
 lr = 1e-3
 n_epochs = 1000
@@ -80,7 +85,7 @@ def build_data():
 
 
 def build_model(path=None):
-    global model
+    global model, input_size
     model = None
     input_size = len(features) + len(technical_indicators)
     if model_framework == 'Sklearn':

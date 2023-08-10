@@ -1,5 +1,4 @@
 from backtesting import Strategy, Backtest
-import numpy as np
 
 
 class MyStrategy(Strategy):

@@ -1,3 +1,7 @@
+import copy
+import os
+os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':16:8'
+
 from sklearn import linear_model, svm, ensemble, neural_network
 from sklearn.metrics import roc_auc_score
 from data_processor import DataProcessor
@@ -47,6 +51,7 @@ C = 10.0
 penalty = 'l2'
 tol = 1e-6
 max_iter = 1000
+early_stopping = True
 
 # deep model config
 batch_size = 512
@@ -92,20 +97,19 @@ def build_model(path=None):
         if path:
             model = joblib.load(path)
         elif model_name == 'LogisticRegression':
-            model = linear_model.LogisticRegression(C=C, penalty=penalty, tol=tol,
-                                                    solver='lbfgs', max_iter=max_iter, 
-                                                    random_state=42)
+            model = linear_model.LogisticRegression(C=C, penalty=penalty, tol=tol, multi_class='ovr',
+                                                    solver='lbfgs', max_iter=max_iter, random_state=42)
         elif model_name == 'Lasso':
             model = linear_model.Lasso(alpha=0.1, max_iter=max_iter, tol=tol, random_state=42)
         elif model_name == 'SVM':
-            model = svm.SVC(C=C, kernel='rbf', gamma='auto', tol=tol, 
-                            max_iter=max_iter, random_state=42)
+            model = svm.LinearSVC(C=C, max_iter=max_iter, random_state=42)
         elif model_name == 'RandomForest':
-            model = ensemble.RandomForestClassifier(n_estimators=100, max_depth=2, random_state=42)
+            model = ensemble.RandomForestClassifier(max_depth=3, n_estimators=5, min_samples_leaf=20, random_state=42)
         elif model_name == 'MLP':
-            model = neural_network.MLPClassifier(hidden_layer_sizes=(100, 100), verbose=True, 
-                                                 batch_size=32, early_stopping=True, tol=tol,
-                                                 learning_rate_init=lr, max_iter=max_iter, random_state=42)
+            model = neural_network.MLPClassifier(hidden_layer_sizes=(32, 64, 32), verbose=False, tol=tol, 
+                                                 batch_size=batch_size, early_stopping=early_stopping, 
+                                                 solver='adam', shuffle=False, learning_rate_init=lr, 
+                                                 alpha=0.001, max_iter=max_iter, random_state=42)
         else:
             raise ValueError(f'Invalid model name: {model_name} with Sklearn framework')
     elif model_framework == 'PyTorch':
@@ -131,6 +135,7 @@ def build_model(path=None):
 
 
 def evaluate(data_loader):
+    global model
     model.eval()
     y_true, y_pred = [], []
     with torch.no_grad():
@@ -146,7 +151,7 @@ def evaluate(data_loader):
 
 
 def train_deep_model():
-    global optimizer, lr_scheduler
+    global optimizer, lr_scheduler, model
     optimizer = Adam(model.parameters(), lr=lr,
                      betas=(0.9, 0.999), eps=1e-08,
                      weight_decay=1e-5)
@@ -156,6 +161,8 @@ def train_deep_model():
     print(model)
     print('----------------------------------------')
     model.to(device)
+    best_model = None
+    best_acc = 0
     for epoch in range(1, n_epochs + 1):
         # train
         model.train()
@@ -172,15 +179,19 @@ def train_deep_model():
             # validate
             train_acc = np.mean(acc)
             _, val_acc, val_auc = evaluate(val_loader)
+            if val_acc > best_acc:
+                best_acc = val_acc
+                best_model = copy.deepcopy(model)
             print(f'Epoch: {epoch+1}, Train Loss: {loss.item():.4f}, Train Acc: {train_acc:.4f}, \
             Val Acc: {val_acc:.4f}, Val AUC: {val_auc:.4f}, lr: {optimizer.param_groups[0]["lr"]:.6f}')
         lr_scheduler.step()
+    model = best_model
     torch.save(model.state_dict(), f'{model_path}/{model_name}_{time.strftime("%Y%m%d%H%M%S", time.localtime())}.ckpt')
     # test
     y_pred_test, test_acc, test_auc = evaluate(test_loader)
     print(f'Test Acc: {test_acc:.4f}, Test AUC: {test_auc:.4f}')
     
-    return y_pred_test
+    return y_pred_test, test_acc, test_auc
 
 
 def train_traditional_model():
@@ -200,7 +211,7 @@ def train_traditional_model():
     test_auc = roc_auc_score(y_test, y_pred)
     print(f'Test Acc: {test_acc:.4f}, Test AUC: {test_auc:.4f}')
     
-    return y_pred
+    return y_pred, test_acc, test_auc
     
 
 def train():
@@ -253,11 +264,12 @@ def run_baseline():
     print(sim_result)
     
 
-def run():
+def run(print_info=False):
+    global data_processor
     build_data()
     build_model()
-    print_info()
-    y_pred = train()
+    if print_info: print_info()
+    y_pred, acc, auc = train()
     
     sim_data = data_processor.get_simulate_data()
     sim_data['y_pred'] = y_pred
@@ -265,4 +277,4 @@ def run():
     sim_result = bt.run()
     print('----------------------------------------')
     print(sim_result)
-    return y_pred
+    return acc, auc, sim_result

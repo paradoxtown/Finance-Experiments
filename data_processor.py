@@ -82,9 +82,9 @@ class DataProcessor(object):
     
     def get_data(self):
         X_train, X_test, y_train, y_test = \
-            train_test_split(self.hist[self.features], self.hist['Target'], test_size=self.test_ratio, shuffle=False)
+            train_test_split(self.hist[self.features], self.hist['Target'], test_size=self.test_ratio, shuffle=False, random_state=42)
 
-        X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=self.val_ratio, shuffle=False)
+        X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=self.val_ratio, shuffle=False, random_state=42)
         
         if self.scale:
             scaler = StandardScaler()

@@ -10,7 +10,7 @@ class AttLSTMClassifier(nn.Module):
         self.num_layers = num_layers
         
         self.Tanh = nn.Tanh()
-        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, dropout=0.2)
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, dropout=0.5)
         self.fc = nn.Linear(hidden_size, num_classes)
         self.batch_norm = nn.BatchNorm1d(num_classes)
         self.sigmoid = nn.Sigmoid()

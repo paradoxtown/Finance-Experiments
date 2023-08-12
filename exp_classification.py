@@ -65,6 +65,7 @@ lr = 1e-3
 n_epochs = 1000
 model_name = 'LSTMClassifier'
 model_framework = 'PyTorch'
+best = False
 
 # initialize
 model = None
@@ -187,7 +188,7 @@ def train_deep_model():
             print(f'Epoch: {epoch+1}, Train Loss: {loss.item():.4f}, Train Acc: {train_acc:.4f}, \
             Val Acc: {val_acc:.4f}, Val AUC: {val_auc:.4f}, lr: {optimizer.param_groups[0]["lr"]:.6f}')
         lr_scheduler.step()
-    model = best_model
+    if best: model = best_model
     torch.save(model.state_dict(), f'{model_path}/{model_name}_{time.strftime("%Y%m%d%H%M%S", time.localtime())}.ckpt')
     # test
     y_pred_test, test_acc, test_auc = evaluate(test_loader)

@@ -10,7 +10,7 @@ from models.gru_classifier import GRUClassifier
 from models.lstm_classifier import LSTMClassifier
 from models.att_lstm_classifier import AttLSTMClassifier
 from torch.optim.lr_scheduler import StepLR
-from torch.optim import Adam
+from torch.optim import Adam, SGD
 import time
 import joblib
 
@@ -66,6 +66,7 @@ n_epochs = 1000
 model_name = 'LSTMClassifier'
 model_framework = 'PyTorch'
 best = False
+optimizer_name = 'Adam'
 
 # initialize
 model = None
@@ -155,9 +156,12 @@ def evaluate(data_loader):
 
 def train_deep_model():
     global optimizer, lr_scheduler, model
-    optimizer = Adam(model.parameters(), lr=lr,
-                     betas=(0.9, 0.999), eps=1e-08,
-                     weight_decay=1e-5)
+    if optimizer_name == 'Adam':
+        optimizer = Adam(model.parameters(), lr=lr,
+                        betas=(0.9, 0.999), eps=1e-08,
+                        weight_decay=1e-5)
+    elif optimizer_name == 'SGD':
+        optimizer = SGD(model.parameters(), lr=lr, momentum=0.9)
     lr_scheduler = StepLR(optimizer, step_size=(n_epochs // 3), gamma=0.1)
     
     print(f'Training {model_name} model...')
@@ -259,6 +263,7 @@ def print_info():
                 "tech_indicators": technical_indicators
             }
         )
+
 
 def run_baseline():
     build_data()

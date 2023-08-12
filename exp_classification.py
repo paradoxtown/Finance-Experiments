@@ -267,16 +267,54 @@ def run_baseline():
     sim_data['y_pred'] = y_pred
     bt = sim.backtest(sim_data)
     sim_result = bt.run()
-    print('----------------------------------------')
-    print(sim_result)
+    wandb.init(
+        project = "finance-experiment",
+        config = {
+            "model_name": 'baseline-random',
+            "model_framework": 'baseline'
+        }
+    )
+    wandb.log({"Sharpe Ratio": sim_result['Sharpe Ratio'],
+               "Sortino Ratio": sim_result['Sortino Ratio'],
+               "Calmar Ratio": sim_result['Calmar Ratio'],
+               "Return (Ann.) [%]": sim_result['Return (Ann.) [%]']})
+    wandb.finish()
+    
+    # all one
+    sim_data.drop('y_pred', axis=1, inplace=True)
+    sim_data['y_pred'] = [1] * len(sim_data)
+    bt = sim.backtest(sim_data)
+    sim_result = bt.run()
+    wandb.init(
+        project = "finance-experiment",
+        config = {
+            "model_name": 'baseline-all-positive',
+            "model_framework": 'baseline'
+        }
+    )
+    wandb.log({"Sharpe Ratio": sim_result['Sharpe Ratio'],
+               "Sortino Ratio": sim_result['Sortino Ratio'],
+               "Calmar Ratio": sim_result['Calmar Ratio'],
+               "Return (Ann.) [%]": sim_result['Return (Ann.) [%]']})
+    wandb.finish()    
     
     # y_true
     sim_data.drop('y_pred', axis=1, inplace=True)
     sim_data['y_pred'] = sim_data['y_true']
     bt = sim.backtest(sim_data)
     sim_result = bt.run()
-    print('----------------------------------------')
-    print(sim_result)
+    wandb.init(
+        project = "finance-experiment",
+        config = {
+            "model_name": 'baseline-true',
+            "model_framework": 'baseline'
+        }
+    )
+    wandb.log({"Sharpe Ratio": sim_result['Sharpe Ratio'],
+               "Sortino Ratio": sim_result['Sortino Ratio'],
+               "Calmar Ratio": sim_result['Calmar Ratio'],
+               "Return (Ann.) [%]": sim_result['Return (Ann.) [%]']})
+    wandb.finish()
     
 
 def run():
@@ -290,9 +328,8 @@ def run():
     sim_data['y_pred'] = y_pred
     bt = sim.backtest(sim_data)
     sim_result = bt.run()
-    wandb.log({"Sharpe Ratop": sim_result['Sharpe Ratio'],
+    wandb.log({"Sharpe Ratio": sim_result['Sharpe Ratio'],
                "Sortino Ratio": sim_result['Sortino Ratio'],
                "Calmar Ratio": sim_result['Calmar Ratio'],
                "Return (Ann.) [%]": sim_result['Return (Ann.) [%]']})
     wandb.finish()
-    return acc, auc, sim_result

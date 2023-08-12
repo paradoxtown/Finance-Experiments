@@ -1,6 +1,7 @@
 import copy
 import os
 os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':16:8'
+os.environ["WANDB_NOTEBOOK_NAME"] = "experiments.ipynb"
 
 from sklearn import linear_model, svm, ensemble, neural_network
 from sklearn.metrics import roc_auc_score
@@ -17,6 +18,7 @@ import torch.nn as nn
 import torch
 import numpy as np
 
+import wandb
 import simulator as sim
 
 # device
@@ -190,6 +192,7 @@ def train_deep_model():
     # test
     y_pred_test, test_acc, test_auc = evaluate(test_loader)
     print(f'Test Acc: {test_acc:.4f}, Test AUC: {test_auc:.4f}')
+    wandb.log({'test_acc': test_acc, 'test_auc': test_auc})
     
     return y_pred_test, test_acc, test_auc
 
@@ -210,6 +213,7 @@ def train_traditional_model():
     test_acc = model.score(X_test, y_test)
     test_auc = roc_auc_score(y_test, y_pred)
     print(f'Test Acc: {test_acc:.4f}, Test AUC: {test_auc:.4f}')
+    wandb.log({"test_acc": test_acc, "test_auc": test_auc})
     
     return y_pred, test_acc, test_auc
     
@@ -222,27 +226,38 @@ def train():
 
 
 def print_info():
-    print(f'Tiker: {tiker}')
-    print(f'Period: {period}')
-    print(f'Interval: {interval}')
-    print(f'Features: {features}')
-    print(f'Technical Indicators: {technical_indicators}')
-    print(f'Target: {target}')
-    print(f'Sequence Length: {seq_len}')
-    print(f'Train Ratio: {train_ratio}')
-    print(f'Test Ratio: {test_ratio}')
-    print(f'C: {C}')
-    print(f'Batch Size: {batch_size}')
-    print(f'Input Size: {input_size}')
-    print(f'Hidden Size: {hidden_size}')
-    print(f'Number of Layers: {num_layers}')
-    print(f'Number of Classes: {num_classes}')
-    print(f'Learning Rate: {lr}')
-    print(f'Number of Epochs: {n_epochs}')
-    print(f'Max Iterations: {max_iter}')
-    print(f'Model Name: {model_name}')
-    print(f'Model Framework: {model_framework}')
-    print('----------------------------------------')
+    if model_framework == 'PyTorch':
+        wandb.init(
+            project = "finance-experiment",
+            config = {
+                "learning_rate": lr,
+                "batch_size": batch_size,
+                "n_epochs": n_epochs,
+                "tech_indicators": technical_indicators,
+                "model_name": model_name,
+                "model_framework": model_framework,
+                "seq_len": seq_len,
+                "input_size": input_size,
+                "hidden_size": hidden_size,
+                "num_layers": num_layers,
+                "num_classes": num_classes,
+                "optimizer": optimizer.__class__.__name__,
+                "lr_scheduler": lr_scheduler.__class__.__name__,
+                "loss_fn": loss_fn.__class__.__name__,
+            }
+        )
+    elif model_framework == 'Sklearn':
+        wandb.init(
+            project = "finance-experiment",
+            config = {
+                "model_name": model_name,
+                "model_framework": model_framework,
+                "C": C,
+                "penalty": penalty,
+                "max_iter": max_iter,
+                "tech_indicators": technical_indicators
+            }
+        )
 
 def run_baseline():
     build_data()
@@ -264,17 +279,20 @@ def run_baseline():
     print(sim_result)
     
 
-def run(print_info=False):
+def run():
     global data_processor
     build_data()
     build_model()
-    if print_info: print_info()
+    print_info()
     y_pred, acc, auc = train()
     
     sim_data = data_processor.get_simulate_data()
     sim_data['y_pred'] = y_pred
     bt = sim.backtest(sim_data)
     sim_result = bt.run()
-    print('----------------------------------------')
-    print(sim_result)
+    wandb.log({"Sharpe Ratop": sim_result['Sharpe Ratio'],
+               "Sortino Ratio": sim_result['Sortino Ratio'],
+               "Calmar Ratio": sim_result['Calmar Ratio'],
+               "Return (Ann.) [%]": sim_result['Return (Ann.) [%]']})
+    wandb.finish()
     return acc, auc, sim_result

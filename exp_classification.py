@@ -23,6 +23,7 @@ import simulator as sim
 
 # device
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+use_wandb = True
 
 # set random seed
 SEED=42
@@ -197,7 +198,7 @@ def train_deep_model():
     # test
     y_pred_test, test_acc, test_auc = evaluate(test_loader)
     print(f'Test Acc: {test_acc:.4f}, Test AUC: {test_auc:.4f}')
-    wandb.log({'test_acc': test_acc, 'test_auc': test_auc})
+    if use_wandb: wandb.log({'test_acc': test_acc, 'test_auc': test_auc})
     
     return y_pred_test, test_acc, test_auc
 
@@ -218,7 +219,7 @@ def train_traditional_model():
     test_acc = model.score(X_test, y_test)
     test_auc = roc_auc_score(y_test, y_pred)
     print(f'Test Acc: {test_acc:.4f}, Test AUC: {test_auc:.4f}')
-    wandb.log({"test_acc": test_acc, "test_auc": test_auc})
+    if use_wandb: wandb.log({"test_acc": test_acc, "test_auc": test_auc})
     
     return y_pred, test_acc, test_auc
     
@@ -231,38 +232,39 @@ def train():
 
 
 def print_info():
-    if model_framework == 'PyTorch':
-        wandb.init(
-            project = "finance-experiment",
-            config = {
-                "learning_rate": lr,
-                "batch_size": batch_size,
-                "n_epochs": n_epochs,
-                "tech_indicators": technical_indicators,
-                "model_name": model_name,
-                "model_framework": model_framework,
-                "seq_len": seq_len,
-                "input_size": input_size,
-                "hidden_size": hidden_size,
-                "num_layers": num_layers,
-                "num_classes": num_classes,
-                "optimizer": optimizer.__class__.__name__,
-                "lr_scheduler": lr_scheduler.__class__.__name__,
-                "loss_fn": loss_fn.__class__.__name__,
-            }
-        )
-    elif model_framework == 'Sklearn':
-        wandb.init(
-            project = "finance-experiment",
-            config = {
-                "model_name": model_name,
-                "model_framework": model_framework,
-                "C": C,
-                "penalty": penalty,
-                "max_iter": max_iter,
-                "tech_indicators": technical_indicators
-            }
-        )
+    if use_wandb:
+        if model_framework == 'PyTorch':
+            wandb.init(
+                project = "finance-experiment-5y",
+                config = {
+                    "learning_rate": lr,
+                    "batch_size": batch_size,
+                    "n_epochs": n_epochs,
+                    "tech_indicators": technical_indicators,
+                    "model_name": model_name,
+                    "model_framework": model_framework,
+                    "seq_len": seq_len,
+                    "input_size": input_size,
+                    "hidden_size": hidden_size,
+                    "num_layers": num_layers,
+                    "num_classes": num_classes,
+                    "optimizer": optimizer.__class__.__name__,
+                    "lr_scheduler": lr_scheduler.__class__.__name__,
+                    "loss_fn": loss_fn.__class__.__name__,
+                }
+            )
+        elif model_framework == 'Sklearn':
+            wandb.init(
+                project = "finance-experiment-5y",
+                config = {
+                    "model_name": model_name,
+                    "model_framework": model_framework,
+                    "C": C,
+                    "penalty": penalty,
+                    "max_iter": max_iter,
+                    "tech_indicators": technical_indicators
+                }
+            )
 
 
 def run_baseline():
@@ -274,7 +276,7 @@ def run_baseline():
     bt = sim.backtest(sim_data)
     sim_result = bt.run()
     wandb.init(
-        project = "finance-experiment",
+        project = "finance-experiment-5y",
         config = {
             "model_name": 'baseline-random',
             "model_framework": 'baseline'
@@ -292,7 +294,7 @@ def run_baseline():
     bt = sim.backtest(sim_data)
     sim_result = bt.run()
     wandb.init(
-        project = "finance-experiment",
+        project = "finance-experiment-5y",
         config = {
             "model_name": 'baseline-all-positive',
             "model_framework": 'baseline'
@@ -310,7 +312,7 @@ def run_baseline():
     bt = sim.backtest(sim_data)
     sim_result = bt.run()
     wandb.init(
-        project = "finance-experiment",
+        project = "finance-experiment-5y",
         config = {
             "model_name": 'baseline-true',
             "model_framework": 'baseline'
@@ -334,8 +336,10 @@ def run():
     sim_data['y_pred'] = y_pred
     bt = sim.backtest(sim_data)
     sim_result = bt.run()
-    wandb.log({"Sharpe Ratio": sim_result['Sharpe Ratio'],
-               "Sortino Ratio": sim_result['Sortino Ratio'],
-               "Calmar Ratio": sim_result['Calmar Ratio'],
-               "Return (Ann.) [%]": sim_result['Return (Ann.) [%]']})
-    wandb.finish()
+    bt.plot(filename=f'./simulation/{model_name}_{time.strftime("%Y%m%d%H%M%S", time.localtime())}.html')
+    if use_wandb:
+        wandb.log({"Sharpe Ratio": sim_result['Sharpe Ratio'],
+                "Sortino Ratio": sim_result['Sortino Ratio'],
+                "Calmar Ratio": sim_result['Calmar Ratio'],
+                "Return (Ann.) [%]": sim_result['Return (Ann.) [%]']})
+        wandb.finish()
